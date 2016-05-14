@@ -1,0 +1,341 @@
+---
+title: 'Analyse human and economic impact caused by significant weather phenomena in the US'
+author: "Dexter Wang"
+date: "12 May 2016"
+output: html_document
+---
+
+## Synopsis
+
+####Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+####In this report, we explore the NOAA Storm Database and try to answer two questions:
+
+####1.Across the United States, which types of events are most harmful with respect to population health?
+
+####2.Across the United States, which types of events have the greatest economic consequences?
+
+####We take <b>sum</b> of total injuries and fatalities as the measurement of harmfulness to population health. For economic impact, we measure the sum of total property/crop damage.
+
+####The result shows that <b>tornado</b> is most harmful to people health with the highest total injuries/fatalities, while <b>flood</b> caused the greatest amount of economical loose on property and crop. 
+
+
+
+
+##Data Processing
+
+````{r message=FALSE,warning=FALSE,echo=FALSE}
+
+# load required libraries
+if (!require("ggplot2")) {
+  install.packages("ggplot2")
+}
+
+if (!require("grid")) {
+  install.packages("grid")
+}
+
+if (!require("dplyr")) {
+  install.packages("dplyr")
+}
+
+if (!require("tidyr")) {
+  install.packages("tidyr")
+}
+
+if (!require("magrittr")) {
+  install.packages("magrittr")
+}
+
+``` 
+
+####Load required libraries
+```{r message=FALSE,warning=FALSE}
+
+library(ggplot2)
+library(grid)
+library(dplyr)
+library(tidyr)
+library(magrittr)
+
+
+```
+
+####load data file
+```{r cache=TRUE,message=FALSE,warning=FALSE}
+# check if StormData.csv.bz has been downloaded
+# the data can be downloaded from 
+# https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2
+
+destfile <- "./StormData.csv.bz"
+
+fileURL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+zipfile <- "StormData.csv.bz"
+
+if(!file.exists(destfile)){
+    res <- tryCatch(download.file(fileURL,
+                              destfile=zipfile,
+                              method="auto"),
+                error=function(e) 1)
+}
+
+# read.csv can directly read compressed bz file containing csv file.
+data <- read.csv(zipfile,header=TRUE,sep=",")
+
+str(data)
+
+```
+
+####check date range and missing data
+```{r message=FALSE,warning=FALSE}
+#show the date range
+date <- as.Date(data$BGN_DATE,"%m/%d/%Y")
+
+min(date)
+max(date)
+
+#show unique event types 
+
+length(unique(data$EVTYPE))
+
+# check if there is missing data in key columns
+
+data[is.na(data$FATALITIES)|is.na(data$INJURIES)|is.na(data$EVTYPE)|is.na(data$CROPDMG)|is.na(data$PROPDMG)|is.na(data$PROPDMGEXP)|is.na(data$CROPDMGEXP),]
+
+```
+
+####There are `r nrow(data)` observations with `r ncol(data)` variables in the dataset, dated from `r min(date)` to `r max(date)`. There are `r length(unique(data$EVTYPE))` distinct event types recorded.
+
+###Analyse impact on pupulation health
+
+####We take <b>sum</b> and <b>mean</b> of total injuries and fatalities as the measurement of harmfulness to population health. 
+
+```{r message=FALSE,warning=FALSE}
+
+subdata<- data[,c("EVTYPE","INJURIES","FATALITIES")]
+
+#group data by event type
+health_impact_sum <- subdata %>% group_by(EVTYPE) %>% mutate(total_impact = INJURIES+FATALITIES) %>% summarise_each(funs(sum)) %>% arrange(desc(total_impact),desc(INJURIES),desc(FATALITIES))
+
+health_impact_mean <- subdata %>% group_by(EVTYPE) %>% mutate(total_impact = INJURIES+FATALITIES) %>% summarise_each(funs(mean)) %>% arrange(desc(total_impact),desc(INJURIES),desc(FATALITIES))
+
+
+# only select the top 10 events by sum/mean of total number of injuries and fatalities
+health_impact_sum <- health_impact_sum[1:10,]
+
+health_impact_mean <- health_impact_mean[1:10,]
+
+#prepare the plot, reorder the factor coloumn by total_impact value
+health_impact_sum <- transform(health_impact_sum, EVTYPE=reorder(EVTYPE, -total_impact) )
+
+health_impact_mean <- transform(health_impact_mean, EVTYPE=reorder(EVTYPE, -total_impact) )
+
+```
+
+####Top 10 events by sum of total injuries/fatalities
+``` {r message=FALSE,warning=FALSE,echo=FALSE}
+health_impact_sum
+```
+
+####Given the frequency of each event
+``` {r message=FALSE,warning=FALSE,echo=FALSE}
+table(as.character(data[data$EVTYPE %in% health_impact_sum[,1],"EVTYPE"]))
+```
+
+####Top 10 events by mean of total injuries/fatalities
+``` {r message=FALSE,warning=FALSE,echo=FALSE}
+health_impact_mean
+```
+
+####Given the frequency of eich event
+```{r message=FALSE,warning=FALSE,echo=FALSE}
+table(as.character(data[data$EVTYPE %in% health_impact_mean[,1],"EVTYPE"]))
+```
+
+####It appears that the frequency of top 10 events by mean injuries/fatalities is too small. For example, there is only `r nrow(data[data$EVTYPE=="Heat Wave",])` observation of Heat Wave which has the highest mean injuries/fatalities. 
+
+####On the other hand, the top 10 events by sum injuries/fatalities captured a high volume of observations, with `r nrow(data[data$EVTYPE=="TORNADO",])` instance of Tornado which caused `r as.integer(health_impact_sum$total_impact[1])` injuries/fatalities in total.
+
+####In this case, the measure sum is much more appropriate than taking mean. So we only use sum to measure the significance of impact on population health.
+
+
+###Analyse economical consequences caused by storm events
+
+####For economic impact, we measure the sum and mean value of total property/crop damage.
+
+####The key variables taken from source data includes
+<li>PROPDMG</li>
+<li>PROPDMGEXP</li>
+<li>CROPDMG</li>
+<li>CROPDMGEXP</li>
+####PROPDMG and CROPDMG represtent the value of property and crop damage. PROPDMGEXP and CROPDMGEXP store the magnifier in which B, M/m, K/k refer to billion, million and thousand respectively.
+
+####E.g, PROPDMG=1.2 and PROPDMGEXP="M" come up with "1.2M" which equals to $1,2000,000 damage.
+```{r message=FALSE,warning=FALSE}
+subdata2<- data[,c("EVTYPE","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")]
+
+str(subdata2)
+
+```
+####Note that there value other than (B,M/m,K/k) in PROPDMGEXP and CROPDMGEXP
+####Let's have a check.
+
+```{r message=FALSE,warning=FALSE}
+head(data[(data$PROPDMG!=0 & (!data$PROPDMGEXP %in% c("B","K","M","k","m"))),c("BGN_DATE","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")])
+
+length(data[(data$PROPDMG!=0 & (!data$PROPDMGEXP %in% c("B","K","M","k","m"))),"BGN_DATE"])
+
+head(data[(data$CROPDMG!=0 & (!data$CROPDMGEXP %in% c("B","K","M","k","m"))),c("BGN_DATE","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")])
+
+length(data[(data$CROPDMG!=0 & (!data$CROPDMGEXP %in% c("B","K","M","k","m"))),"BGN_DATE"])
+
+```
+#### There are only several hundreds of observations with uninterpretable PROPDMGEXP or CROPDMGEXP mostly in year 1995.That is not so big compare to `r nrow(data)` total observations. So let's remove them from the sample. 
+```{r message=FALSE,warning=FALSE}
+nrow(subdata2)
+
+subdata2<- subdata2 %>% filter(CROPDMGEXP %in% c("B","K","M","k","m")|CROPDMG==0) %>% filter(PROPDMGEXP %in% c("B","K","M","k","m")|PROPDMG==0)
+
+nrow(subdata2)
+```
+#### Calculate the absolute value for property and crop damage
+```{r message=FALSE,warning=FALSE}
+mapping <- data.frame(name=c("B","M","m","K","k"),magnifier=c(10^9,10^6,10^6,10^3,10^3),stringsAsFactors=FALSE)
+
+
+subdata2$VPROPDMG <--0
+subdata2$VCROPDMG <--0
+
+for(i in 1:5){
+  index_p <- subdata2$PROPDMGEXP==mapping[i,1]
+  index_c <- subdata2$CROPDMGEXP==mapping[i,1]
+  
+subdata2[index_p,"VPROPDMG"] <-  subdata2[index_p,"PROPDMG"] * mapping[i,2]
+  
+subdata2[index_c,"VCROPDMG"] <-  subdata2[index_c,"CROPDMG"] * mapping[i,2]
+  
+}
+
+head(subdata2[subdata2$PROPDMG!=0&subdata2$CROPDMG!=0,],10)
+summary(subdata2$VPROPDMG)
+summary(subdata2$VCROPDMG)
+
+```
+
+
+ 
+####Now let's calculate the sum and mean of property/crop damage
+```{r message=FALSE,warning=FALSE}
+subdata2<- subdata2[,c("EVTYPE","VPROPDMG","VCROPDMG")]
+
+names(subdata2) <- c("Event_Type","Property_Damage","Crop_Damage")
+
+economic_impact_sum <- subdata2 %>% group_by(Event_Type) %>% mutate(total_damage = Property_Damage+Crop_Damage) %>% summarise_each(funs(sum)) %>% arrange(desc(total_damage),desc(Property_Damage),desc(Crop_Damage))
+
+economic_impact_mean <- subdata2 %>% group_by(Event_Type) %>% mutate(total_damage = Property_Damage+Crop_Damage) %>% summarise_each(funs(mean)) %>% arrange(desc(total_damage),desc(Property_Damage),desc(Crop_Damage))
+
+economic_impact_sum <- economic_impact_sum[1:10,]
+
+economic_impact_mean <- economic_impact_mean[1:10,]
+
+#prepare the plot, reorder the factor coloumn by total_damage value
+economic_impact_sum <- transform(economic_impact_sum, Event_Type=reorder(Event_Type, -total_damage) )
+
+economic_impact_mean <- transform(economic_impact_mean, Event_Type=reorder(Event_Type, -total_damage) )
+```
+####Top 10 events by sum of total value of property/crop damage
+``` {r message=FALSE,warning=FALSE}
+economic_impact_sum 
+```
+####Given the frequency of the events
+``` {r message=FALSE,warning=FALSE}
+table(as.character(data[data$EVTYPE %in% economic_impact_sum[,1],"EVTYPE"]))
+```
+
+####Top 10 events by mean of total value of property/crop damage
+``` {r message=FALSE,warning=FALSE}
+economic_impact_mean
+```
+####Given the frequency of the events
+``` {r message=FALSE,warning=FALSE}
+table(as.character(data[data$EVTYPE %in% economic_impact_mean[,1],"EVTYPE"]))
+```
+####Again, the sum of damage has much more supporting observations compare to the mean. So we only use sum to measure the significance of the event type. 
+
+
+
+##Results
+
+####The results of the analysis are shown below:
+
+###Impact on population health
+```{r message=FALSE,warning=FALSE}
+
+health_impact_sum <- health_impact_sum %>% gather(impact_name,count,-EVTYPE,-total_impact)
+
+health_impact_mean <- health_impact_mean %>% gather(impact_name,count,-EVTYPE,-total_impact)
+
+g<-ggplot(health_impact_sum,aes(x=EVTYPE,y=count,fill=impact_name))+geom_bar(stat="identity") +coord_flip() 
+
+g<- g+labs(title="The Top 10 most harmful events to population health",y="Total Count",x="Event Name")+ theme(legend.position="right",
+       legend.title=element_blank(),plot.margin = unit(c(1,2,4,1),"lines"))
+
+g<-g+ annotation_custom(grob = textGrob("The number of injuries and fatalities caused by tornado \nis significantly higher than that of the other top 10 events"),  
+        xmin = -1.5, xmax = -2, ymin = 45000, ymax = 50000)
+
+gt <- ggplot_gtable(ggplot_build(g))
+gt$layout$clip[gt$layout$name=="panel"] <- "off"
+grid.draw(gt)
+
+```
+
+###Impact on economy
+```{r message=FALSE,warning=FALSE}
+
+economic_impact_sum <- economic_impact_sum %>% gather(impact_name,total,-Event_Type,-total_damage)
+
+economic_impact_mean <- economic_impact_mean %>% gather(impact_name,total,-Event_Type,-total_damage)
+
+g1<-ggplot(economic_impact_sum,aes(x=Event_Type,y=total/1000000000,fill=impact_name))+geom_bar(stat="identity") +coord_flip() 
+
+g1<- g1+labs(title="The Top 10 most harmful events to economy",y="Total Value (in billion)",x="Event Name")+ theme(legend.position="right",
+       legend.title=element_blank(),plot.margin = unit(c(1,2,4,1),"lines"))
+
+g1<-g1+ annotation_custom(grob = textGrob("The total value of property and crop damage caused by Flood \nis much higher than that of the other top 10 events"),  
+        xmin = -1.5, xmax = -2, ymin = -50, ymax = 200)
+
+gt1 <- ggplot_gtable(ggplot_build(g1))
+gt1$layout$clip[gt1$layout$name=="panel"] <- "off"
+grid.draw(gt1)
+```
+
+####Total injuries by tornado
+```{r message=FALSE,warning=FALSE}
+tonado_injuries <- as.integer(health_impact_sum[health_impact_sum$EVTYPE=="TORNADO" & health_impact_sum$impact_name=="INJURIES","count"])
+
+tonado_injuries
+```
+####Total fatalities by tornado
+```{r message=FALSE,warning=FALSE}
+tonado_fatalities <- as.integer(health_impact_sum[health_impact_sum$EVTYPE=="TORNADO" & health_impact_sum$impact_name=="FATALITIES","count"])
+
+tonado_fatalities
+```
+####Total property damage by flood
+```{r message=FALSE,warning=FALSE}
+flood_property_damage <- as.numeric(economic_impact_sum[economic_impact_sum$Event_Type=="FLOOD" & economic_impact_sum$impact_name=="Property_Damage","total"])
+
+flood_property_damage
+```
+
+####Total crop damage by flood
+```{r message=FALSE,warning=FALSE}
+flood_crop_damage <- as.numeric(economic_impact_sum[economic_impact_sum$Event_Type=="FLOOD" & economic_impact_sum$impact_name=="Crop_Damage","total"])
+
+flood_crop_damage
+
+```
+
+### In conclusion, tornado is most harmful to human lives in the US. It caused `r tonado_injuries` injuries, `r tonado_fatalities` fatalities in total between `r min(date)` and `r max(date)`. Flood caused the most significant economical loose,  with `r round(flood_property_damage/1000000000)` billion property damage and `r round(flood_crop_damage/1000000000)` billion crop damage during that period.  
+
+##Thanks for viewing! : )
