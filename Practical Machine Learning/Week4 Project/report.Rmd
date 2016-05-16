@@ -1,0 +1,290 @@
+---
+title: "Human Activity Recognition Using Random Forest"
+author: "Dexter Wang"
+date: "16 May 2016"
+output: html_document
+---
+
+#Synopsis
+
+####This report involves building a predictive model to recognise human activity based on data colected from fitness trackers. The data includes accelerometers on the belt, forearm, arm and dumbell of 6 participants who performed barbell lifts correctly and incorrectly in 5 different ways. The goal is to identify the quality of the excercise by recognising such 5 activity classes. 
+
+####We use Random Forest to build the model and compare the performance under different settings in order to find the best model. 
+
+#Data Processing
+####Data pre-processing includes
+<li>Reading data from source</li>
+<li>Replacing missing values "#DIV/0!" by NA</li>
+<li>Remove variables which have mostly NA or empty string values</li>
+<li>Remove not usable columns such as id/time stamp/user_name</li>
+<li>Fixing data types (change character to factor)</li>
+<li>Split data into training/test sets (80/20)</li>
+
+
+####Required libraries
+```{r message=FALSE,warning=FALSE}
+library(caret)
+library(ggplot2)
+library(randomForest)
+library(mlbench)
+
+```
+####The data come from this source http://groupware.les.inf.puc-rio.br/har  
+
+```{r echo=FALSE}
+setwd("C:/D/R/Practical Machine Learning/Week4 Project")
+```
+
+```{r message=FALSE,warning=FALSE}
+training <- read.csv("./pml-training.csv",header=TRUE,stringsAsFactors=FALSE)
+submit_testing <- read.csv("./pml-testing.csv",header=TRUE,stringsAsFactors=FALSE)
+
+dim(training)
+```
+
+```{r message=FALSE,warning=FALSE,echo=FALSE}
+# replace "#DIV/0!" with NA
+training[!is.na(training) &  training=="#DIV/0!"]  <- NA
+
+
+# remove the columns which are mostly NA or blank values
+na_percent <-sapply(training, function(y) sum(length(which(is.na(y)|y=="")))/length(y) )
+
+na_percent <- data.frame(na_percent)
+
+remove_index <- which(na_percent>0.97)
+
+# remove the id/timestamp columns
+
+remove_index <- c(remove_index,grep("X|timestamp|user_name", names(training)))
+
+training <- training[,-remove_index]
+
+training$classe <- as.factor(training$classe) 
+
+training$new_window <- as.factor(training$new_window)
+
+```
+####After data cleansering
+```{r message=FALSE,warning=FALSE}
+dim(training)
+```
+####Retained varieables
+```{r message=FALSE,warning=FALSE}
+names(training)
+```
+
+####Split data into training/testing set by 80/20 ratio
+```{r message=FALSE,warning=FALSE}
+set.seed(60515)
+
+inTrain <- createDataPartition(training$classe, p = 0.8)[[1]]
+testing <- training[-inTrain,]
+training <- training[inTrain,]
+
+dim(training)
+dim(testing)
+```
+
+#The first prediction model
+####Let's quickly run prediction using random forest using default setting and see how it looks like.
+
+```{r message=TRUE,warning=FALSE,cache=TRUE}
+set.seed(60515)
+model<- randomForest(classe~.,data=training,importance=TRUE)
+model
+pd <- predict(model,testing)
+acc <- sum(testing$classe==pd)/length(testing$classe)
+1-acc
+
+```
+####The performance already looks quite good.
+####The out of bag error rate is `r round(median(model$err.rate[,"OOB"])*10000)/100`%
+####In random forest, the [out of bag error rate](https://www.quora.com/What-is-the-out-of-bag-error-in-Random-Forests) is an accurate estimation of expected out of sample error. As random forest itself is a bootstrapping procedure, there is no need to do cross validation on top of it to get the expected out of sample error. 
+####Not suprisingly, the error rate againest the testing set is `r round((1-acc)*10000)/100`% which is slightly higher than the expectation.
+
+#Feature Selection and performance tuning
+####The tuneRF function tunes the random forest model trying to find the best number of sample variables selected for each tree (mty), in order to get the lowest OOB error (out of bag error)
+####The figure of OOB error against mty is as below
+```{r message=TRUE,warning=FALSE,cache=TRUE}
+tuneRF(training[,-length(training)], training[,length(training)], mtryStart=2, ntreeTry=500, stepFactor=2, improve=0.005,trace=FALSE, plot=TRUE, doBest=FALSE)
+
+```
+####It shows that the best number of variables is 16.
+
+####The figure below shows the ranking of variable importance by Mean Decrease Accuracy and Mean Decrease Gini
+```{r message=TRUE,warning=FALSE,cache=TRUE}
+varImpPlot(model)
+```
+
+##Investigate "num_window" variable
+####The "num_window" looks suspecious as it maybe a sustitute of surrogate key, in which case should not be included in the training set.
+####From the hitogram of "num_window", it can be seen that the value is continously distributed and seems being broken into a number of sections corresponding to different class of activities respectively.
+```{r message=TRUE,warning=FALSE}
+d <- rbind(training,testing)
+ggplot(data=d, aes(num_window)) + geom_histogram(col="red",aes(fill=classe),bins=100)
+
+```
+
+####Let's try a model with only "new_window" as predictor
+```{r message=TRUE,warning=FALSE}
+set.seed(60515)
+model_num_window<- randomForest(classe~.,data=training[,c("num_window","classe")])
+model_num_window
+pd_num_window <- predict(model_num_window,testing)
+acc_num_window <- sum(testing$classe==pd_num_window)/length(testing$classe)
+1-acc_num_window
+
+```
+####The model achieved a very high accuracy with OOB rate `r round(median(model_num_window$err.rate[,"OOB"])*10000)/100`% and error rate `r round((1-acc)*10000)/100`% against testing data.
+
+####It is confirmed that "new_window" is an id-like variable and should be removed.
+
+##Discard variables which are highly correlated
+####It is recommended that highly correlated variables should be trimed before training, with only one variable left per group. For example, if variable Z is the result of linear function of variable X and Y (Z=aX+bY), than only Z should be retained in the training set.
+
+####A resonable smaller set of variables can speed up model training. It may have better accuracy on prediction as well.
+
+####We create a correlation metrix for each variable pairs and discard some of those given a boundary of 0.75 correlation.
+```{r message=TRUE,warning=FALSE,echo=FALSE}
+training<-training[,-which(names(training) %in% c("num_window"))]
+ttraining<-training
+training<- ttraining[,2:(length(ttraining[1,])-1)]
+```
+
+```{r message=TRUE,warning=FALSE}
+#Calculate correlation matrix
+correlationMatrix <- cor(training)
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+
+unselected<- names(training[,highlyCorrelated])
+
+selected<-names(training[,-highlyCorrelated])
+
+```
+
+
+```{r echo=FALSE,results=FALSE}
+training_2 <- training[,selected]
+
+correlationMatrix_2 <- cor(training_2)
+
+highlyCorrelated_2 <- findCorrelation(correlationMatrix_2, cutoff=0.75)
+
+highlyCorrelated_2
+
+selected <-c(selected,"new_window","classe")
+
+training<- ttraining
+
+```
+
+####Select 33 variables
+```{r message=TRUE,warning=FALSE}
+selected 
+```
+####Discard 21 variables
+```{r message=TRUE,warning=FALSE}
+unselected
+```
+
+#Find the best model
+####The last part of this report is to compare the performance of random forest models under different settings.
+####The variation of settings includes:
+* Number of variables in the training set. Choose between the full set (54 variables) or the subset (33 variables) with highly correlated variables removed. 
+* Number of variables randomly selected to build the tree. Aka, the "mtry" parameter, which is set to c(4,6,8,16)
+* Number of trees to grow, ntree= c(100,200,500,1000)
+
+####The monitored performance includes:
+* The out of bag error rate (OOB)
+* Error rate against testing data
+* Run time for model training
+
+####Note that variable "num_window" has already been removed in the training set. 
+```{r message=TRUE,warning=FALSE,echo=FALSE,cache=TRUE}
+#looping all different settings
+num_var <- c(54,33)
+num_tree <- c(100,200,500,1000)
+sample_var <- c(4,6,8,16)
+
+performance_matrix <- data.frame(num_var=NA, ntree=NA,mty=NA,OOB=NA,testing_error=NA,run_time=NA)
+performance_matrix<- performance_matrix[-1,]
+
+for (i in num_var) {
+	if(i==33){
+		t<-training[,selected]
+	}	
+	else
+	{
+		t<-training
+	}
+  length(t[,1])
+  
+	for(j in num_tree){
+		for(k in sample_var){
+			#start clock
+			ptm <- proc.time()
+			set.seed(60515)
+			md<- randomForest(classe~.,data=t,mtry=k,ntree=j)
+
+			t_elap<- (proc.time()-ptm)[3]
+			#end clock
+			p <- predict(md,testing)
+
+			ac <- sum(testing$classe==p)/length(testing$classe)
+
+			ac <- 1-ac 
+
+			oob<-median(md$err.rate[,"OOB"])
+
+			result <- c(length(t[1,]),j,k,oob,ac,t_elap)
+			performance_matrix <- rbind(performance_matrix,result)
+		}
+	}
+  
+}
+
+
+names(performance_matrix)<- c("num_var","ntree","mtry","OOB","testing_error","run_time")
+
+
+```
+
+```{r message=FALSE,warning=FALSE}
+performance_matrix
+```
+#Result
+####The result shows that
+* The prediction accuracy is better when using the full set of 54 variables than that of using the subset of 33 variables.
+* The out of bag error decreases as the number of trees increases in the model.
+
+####The best model with lowest OOB is as below
+```{r message=FALSE,warning=FALSE}
+performance_matrix[15,]
+
+```
+```{r message=FALSE,warning=FALSE,echo=FALSE}
+
+set.seed(60515)
+bestmd<- randomForest(classe~.,data=training,mtry=8,ntree=1000)
+
+p <- predict(bestmd,testing)
+ac <- sum(testing$classe==p)/length(testing$classe)
+ac <- 1-ac 
+
+```
+```{r message=FALSE,warning=FALSE}
+bestmd
+```
+####Error rate against testing data
+```{r message=FALSE,warning=FALSE}
+ac
+```
+
+####Over all, all models trained by 54 variables performed closly good in terms of error rate on testing data. So it is reasonable to choose a smaller ntree and mtry number to save some computing time.
+
+#Thanks for viewing! :)
+
+
+
