@@ -7,7 +7,7 @@ output: html_document
 
 #Synopsis
 
-####This report involves building a predictive model to recognise human activity based on data colected from fitness trackers. The data includes accelerometers on the belt, forearm, arm and dumbell of 6 participants who performed barbell lifts correctly and incorrectly in 5 different ways. The goal is to identify the quality of the excercise by recognising such 5 activity classes. 
+####This report involves building a predictive model to recognise human activity based on data collected from fitness trackers. The data includes accelerometers on the belt, forearm, arm and dumbell of 6 participants who performed barbell lifts correctly and incorrectly in 5 different ways. The goal is to identify the quality of the exercise by recognising such 5 activity classes. 
 
 ####We use Random Forest to build the model and compare the performance under different settings in order to find the best model. 
 
@@ -101,7 +101,7 @@ acc <- sum(testing$classe==pd)/length(testing$classe)
 ####The performance already looks quite good.
 ####The out of bag error rate is `r round(median(model$err.rate[,"OOB"])*10000)/100`%
 ####In random forest, the [out of bag error rate](https://www.quora.com/What-is-the-out-of-bag-error-in-Random-Forests) is an accurate estimation of expected out of sample error. As random forest itself is a bootstrapping procedure, there is no need to do cross validation on top of it to get the expected out of sample error. 
-####Not suprisingly, the error rate againest the testing set is `r round((1-acc)*10000)/100`% which is slightly higher than the expectation.
+####Not surprisingly, the error rate against the testing set is `r round((1-acc)*10000)/100`% which is slightly higher than the expectation.
 
 #Feature Selection and performance tuning
 ####The tuneRF function tunes the random forest model trying to find the best number of sample variables selected for each tree (mty), in order to get the lowest OOB error (out of bag error)
@@ -118,8 +118,9 @@ varImpPlot(model)
 ```
 
 ##Investigate "num_window" variable
-####The "num_window" looks suspecious as it maybe a sustitute of surrogate key, in which case should not be included in the training set.
-####From the hitogram of "num_window", it can be seen that the value is continously distributed and seems being broken into a number of sections corresponding to different class of activities respectively.
+####The "num_window" looks suspicious as it maybe a substitute of surrogate key, in which case should not be included in the training set.
+####From the histogram of "num_window", it can be seen that the value is continuously distributed and seems being broken into a number of sections corresponding to different class of activities respectively.
+
 ```{r message=TRUE,warning=FALSE}
 d <- rbind(training,testing)
 ggplot(data=d, aes(num_window)) + geom_histogram(col="red",aes(fill=classe),bins=100)
@@ -141,11 +142,11 @@ acc_num_window <- sum(testing$classe==pd_num_window)/length(testing$classe)
 ####It is confirmed that "new_window" is an id-like variable and should be removed.
 
 ##Discard variables which are highly correlated
-####It is recommended that highly correlated variables should be trimed before training, with only one variable left per group. For example, if variable Z is the result of linear function of variable X and Y (Z=aX+bY), than only Z should be retained in the training set.
+####It is recommended that highly correlated variables should be trimmed before training, with only one variable left per group. For example, if variable Z is the result of linear function of variable X and Y (Z=aX+bY), than only Z should be retained in the training set.
 
-####A resonable smaller set of variables can speed up model training. It may have better accuracy on prediction as well.
+####A reasonable smaller set of variables can speed up model training. It may have better accuracy on prediction as well.
 
-####We create a correlation metrix for each variable pairs and discard some of those given a boundary of 0.75 correlation.
+####We create a correlation matrix for each variable pairs and discard some of those given a boundary of 0.75 correlation.
 ```{r message=TRUE,warning=FALSE,echo=FALSE}
 training<-training[,-which(names(training) %in% c("num_window"))]
 ttraining<-training
@@ -277,12 +278,16 @@ ac <- 1-ac
 ```{r message=FALSE,warning=FALSE}
 bestmd
 ```
+####The estimated out of sample error is `r round((median(bestmd$err.rate[,"OOB"]))*100000)/1000`% 
+
 ####Error rate against testing data
 ```{r message=FALSE,warning=FALSE}
 ac
 ```
+####This result is not as good as the model using only "num_window" as predictor.
+####Although "num_window" is available in the final 20 testing cases, using id-like variable to predict outcome is still a means of cheating : P 
 
-####Over all, all models trained by 54 variables performed closly good in terms of error rate on testing data. So it is reasonable to choose a smaller ntree and mtry number to save some computing time.
+####Over all, all models trained by 54 variables performed closely good in terms of error rate on testing data. So it is reasonable to choose a smaller ntree and mtry number to save some computing time.
 
 #Thanks for viewing! :)
 
