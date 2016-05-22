@@ -1,0 +1,81 @@
+---
+title: "Statistical Inference - Basic Inference Simulation"
+author: "Dexter Wang"
+date: "21 May 2016"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: lualatex
+---
+#Synopsis
+####This report involves a practice of basic data simulation and inferential data analysis. 
+####The goal is to investigate the exponential distribution in R and compare it with the Central Limit Theorem. The exponential distribution can be simulated in R with rexp(n, lambda) where lambda is the rate parameter. The mean of exponential distribution is 1/lambda and the standard deviation is also 1/lambda. In the simulation, set lambda = 0.2 and run the distribution of averages of 40 exponentials for 1000 times. 
+####The questions to answer includes:
+1. Show the sample mean and compare it to the theoretical mean of the distribution.
+2. Show how variable the sample is (via variance) and compare it to the theoretical variance of the distribution.
+3. Show that the distribution is approximately normal.
+
+####Setup simulation
+```{r message=FALSE,warning=FALSE}
+l <- 0.2    #set lambda=0.2
+n<- 40      #40 simulations per set
+i<- 1000    #run simulation 1000 times
+
+set.seed(220516)
+sim<- replicate(i,rexp(n,l))
+```
+#Task One
+###Show the sample mean and compare it to the theoretical mean of the distribution.
+```{r message=FALSE,warning=FALSE}
+sMean <- round(mean(colMeans(sim)),3) #Sample Mean
+tMean <- 1/l #Theoretical Mean
+data.frame(Type=c("Sample","Theoretical"),Mean=c(sMean,tMean))
+
+```
+####It can be seen that the sample mean (`r sMean`) is very close to the theoretical Mean (`r tMean`)
+#Task Two
+###Show how variable the sample is (via variance) and compare it to the theoretical variance of the distribution.
+```{r message=FALSE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+
+sVar <- round(var(colMeans(sim)),3)
+sSd <- round(sd(colMeans(sim)),3)
+tSd <- round((1/l*1/sqrt(n)),3)    #Theoretical Standard Deviation
+tVar <- round(tSd ^2,3)            #Theoretical Variance
+diff_Var<- paste("",round((sVar-tVar)/tVar,3)*100,"%")
+diff_Sd <- paste("",round((sSd-tSd)/tSd,3)*100,"%")
+data.frame(Calculation=c("Standard Deviation","Variance"),Sample=c(sSd,sVar),Theoretical=c(tSd,tVar),Difference=c(diff_Sd,diff_Var))
+
+```
+####The result shows that both Sample Variance (`r sVar`) and Sample Standard Deviation (`r sSd`) are perfectly matching Theoretical Variance (`r tVar`) and Theoretical Standard Deviation (`r tSd`) with only `r diff_Var` and `r diff_Sd` difference compare to Theoretical value respectively.
+
+#Task Three
+```{r message=FALSE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=65)}
+library(ggplot2)
+
+#plot 1
+sim.plot <- data.frame(as.vector(sim))
+title<-"Distribution of one thousand times simulation \nof 40 exponential value"
+g <- ggplot(sim.plot,aes(sim.plot))
+g<-g+geom_histogram(aes(y=..density..),bins=30,color="blue",fill="lightblue")
+g<-g+geom_vline(aes(color="Sample Mean",xintercept=mean(sim[,1])),  linetype="dashed", size=1)
+g<-g+geom_density(alpha=.2, fill="black")+labs(x="values",y="density",
+title=title)
+g
+
+#plot 2
+simMean.plot <- data.frame(mean=colMeans(sim))
+title<-"Distribution of one thousand times simulation \nof mean of 40 exponential value"
+g2 <- ggplot(simMean.plot,aes(simMean.plot))
+g2 <-g2+geom_histogram(aes(y=..density..),bins=50,color="blue",fill="lightblue")
+g2<-g2+stat_function(fun=dnorm, args=list(mean=tMean, sd=tSd),aes(color="Normal Distribution"),size=1)
+g2<-g2+geom_density(aes(color = "Sample Distribution"), size = 1, show_guide=FALSE)
+g2<-g2+geom_vline(aes(color="Sample Mean",xintercept=sMean),linetype="dashed", size=1,show_guide=FALSE)
+g2<-g2+geom_vline(aes(color="Theoretical Mean",xintercept=tMean),linetype="dashed", size=1,show_guide=FALSE)
+g2<-g2+geom_density(alpha=.2, fill="black")
+g2<-g2+labs(title=title,x="values",y="density")
+g2
+```
+
+####From the figures, it can be seen that the simulation is exponentially distributed. The mean of 40 exponential values in one thousand simulation almost overlap with normal distribution with slight left skew. The sample and theoretical mean are nearly same.
+
+##Thanks for viewing :)
