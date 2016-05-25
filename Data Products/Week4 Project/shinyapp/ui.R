@@ -39,7 +39,13 @@ shinyUI(
     plotOutput("distPlot"))
   )
     ,
-    fluidRow(headerPanel("") )
+    fluidRow(
+      p(em("Documentation:",a("Diamonds Product Report",href="./readme.html"))),
+       p(em("Documentation:",a("Diamonds Product Report",href="./shinyapp/readme.html"))),
+      p(em("Github Documentation:",a("Data-Science-Data-Products",href="https://github.com/dexterwang/DataScienceJohnHopkinsUni/tree/master/Data%20Products/Week4%20Project/readme.md"))),
+      p(em("Github repo:",a("Data-Science-Data-Products",href="https://github.com/dexterwang/DataScienceJohnHopkinsUni/tree/master/Data%20Products/Week4%20Project/")))
+
+      )
     ),
    tabPanel("Detailed Report",
     sidebarPanel(
