@@ -2,6 +2,6 @@ name: shinyapp
 account: dexterwang
 server: shinyapps.io
 appId: 104316
-bundleId: 462611
+bundleId: 462647
 url: https://dexterwang.shinyapps.io/shinyapp/
-when: 1464195836.3326
+when: 1464197357.62997

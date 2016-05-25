@@ -40,10 +40,6 @@ shinyUI(
   )
     ,
     fluidRow(
-      p(em("Documentation:",a("Diamonds Product Report",href="./readme.html"))),
-       p(em("Documentation:",a("Diamonds Product Report",href="./shinyapp/readme.html"))),
-      p(em("Github Documentation:",a("Data-Science-Data-Products",href="https://github.com/dexterwang/DataScienceJohnHopkinsUni/tree/master/Data%20Products/Week4%20Project/readme.md"))),
-      p(em("Github repo:",a("Data-Science-Data-Products",href="https://github.com/dexterwang/DataScienceJohnHopkinsUni/tree/master/Data%20Products/Week4%20Project/")))
 
       )
     ),
@@ -75,7 +71,24 @@ shinyUI(
       tableOutput('table')
       )
 
+    ),
+   tabPanel("Documentation",
+    helpText('Diamond Browser is a shiny app which allows you to browse diamonds in different ways through a web page.'),
+    helpText('The functions of the app includes: '),
+    helpText('1. Data Visulisation'),
+    helpText('2. Detailed Report'),
+    helpText('3. Data Download'),
+    helpText('Data Visulisation allows users to visualise our diamond stock.User can specify the attributes in x-axis, y-axis and grouping colour in a scatter chart or box plot to see how price changes over different characteristics of the diamonds. '),
+    helpText('"Detailed Report" lists all diamonds for users to browse with every aspect of details.Users can select/unselect variables to display. The table columns can be sorted, filterd or even searched by keyword.'),
+    helpText('Data Download allows users to download selected subset of diamonds data as .csv files.'),
+
+     #p(em("Documentation:",a("Diamonds Product Report",href="./readme.html"))),
+      p(em("Github Documentation:",a("Data-Science-Data-Products",href="https://github.com/dexterwang/DataScienceJohnHopkinsUni/tree/master/Data%20Products/Week4%20Project/readme.md"))),
+      p(em("Source Code:",a("Data-Science-Data-Products",href="https://github.com/dexterwang/DataScienceJohnHopkinsUni/tree/master/Data%20Products/Week4%20Project/")))
+
     )
 
    )
+
   )
+
